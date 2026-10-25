@@ -34,6 +34,17 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
 
+      - name: Set up Python for validation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install image comparison dependencies
+        shell: powershell
+        run: |
+          python -m pip install numpy==2.2.6 Pillow==11.2.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       # The single source of truth for the release number is cmake/Version.cmake. The tag
       # only mirrors it, so a mismatch means someone tagged without bumping (or bumped
       # without re-tagging) and the run stops before anything is published.
