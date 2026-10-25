@@ -309,7 +309,7 @@ float4 PwTReproject(PwFullscreenVertex input, out float accepted, out float3 hea
         {
             // Colour consistency: the residual's frame must have shown the same thing at q (wrong vectors,
             // disocclusions the depth test misses - teeth behind lips -, HUD, transparency).
-            float3 cf = PwTLoadFrame(PwTColorF, int3(PwTRectTexel(qk, PwTColorRect), 0)).rgb;
+            float3 cf = PwTReprojectColour(qk);
             wk *= PwTColourGate(ck, cf, PwTTune.x);
             // On a silhouette the pixel's vector may be the other surface's (the guides' edge is not the
             // frame's), and the gate above forgives too much to notice on dark things: dark wall took dark
