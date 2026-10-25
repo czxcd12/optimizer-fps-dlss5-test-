@@ -35,9 +35,16 @@ void Reproject(Gpu &gpu, const SkyShaders &now, const SkyShaders &master, const 
         for (const auto &k : kReprojectConfigs)
             for (const std::uint32_t skip : {0u, 1u}) {
                 Root root = WithSky(ReprojectConstants(k), 1.0f);
-                root[24] = 0.0f; // isolate sky policy from the legacy nearest-colour gate
                 const Texel sentinel{12345.0f, -6789.0f, 42.0f, 7.0f};
                 const Lanes lanes{kW, kH, 0, 0, 0, skip, 0, 0};
+                // Retain off-policy coverage with the new subpixel gate enabled.
+                Views unbound = views;
+                unbound[kField] = nullptr;
+                const auto gated = Run(gpu, now.reproject, views, root, lanes, Native(kW, kH, sentinel));
+                const auto baseline = Run(gpu, now.reproject, unbound, root, lanes, Native(kW, kH, sentinel));
+                Require(SameBits(gated[0], baseline[0]) && SameBits(gated[1], baseline[1]),
+                        "(9) inactive sky field changed the subpixel carry");
+                root[24] = 0.0f; // legacy fixture intentionally uses the old nearest-colour gate
                 const auto a = Run(gpu, now.reproject, views, root, lanes, Native(kW, kH, sentinel));
                 const auto b = Run(gpu, master.reproject, views, root, lanes, Native(kW, kH, sentinel));
                 Require(SameBits(a[0], b[0]) && SameBits(a[1], b[1]), "(9) Reproject differs from master with the sky field off");

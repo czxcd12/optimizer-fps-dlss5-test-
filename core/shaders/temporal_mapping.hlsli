@@ -196,3 +196,14 @@ float PwTColourGate(float3 c, float3 cf, float tol)
     float relL = abs(lc - lf) / (max(lc, lf) + 0.02);
     return (1.0 - smoothstep(0.75 * tol, 1.5 * tol, chroma)) * (1.0 - smoothstep(2.0 * tol, 4.0 * tol, relL));
 }
+
+// Validate colour at the same continuous history position used to fetch the residual.
+// A point Load rounds q to a different position: at a subpixel-moving hair/building
+// edge it can reject an otherwise correct carry, alternating NR detail with fill.
+float3 PwTReprojectColour(float2 q)
+{
+    uint width, height;
+    PwTColorF.GetDimensions(width, height);
+    return PwTEncodeFrame(PwTColorF.SampleLevel(PwTLinearClamp,
+        PwTRectUv(q, PwTColorRect, float2(width, height)), 0.0).rgb);
+}

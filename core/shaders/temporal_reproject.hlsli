@@ -264,17 +264,6 @@ bool PwTOnSilhouette(float2 p)
     return PwTDepthMismatch(lo, hi) > PwTParams.w;
 }
 
-// Validate colour at the same continuous history position used to fetch the residual.
-// A point Load rounds q to a different position: at a subpixel-moving hair/building
-// edge it can reject an otherwise correct carry, alternating NR detail with fill.
-float3 PwTReprojectColour(float2 q)
-{
-    uint width, height;
-    PwTColorF.GetDimensions(width, height);
-    return PwTEncodeFrame(PwTColorF.SampleLevel(PwTLinearClamp,
-        PwTRectUv(q, PwTColorRect, float2(width, height)), 0.0).rgb);
-}
-
 float4 PwTReproject(PwFullscreenVertex input, out float accepted, out float3 health)
 {
     accepted = 1.0;

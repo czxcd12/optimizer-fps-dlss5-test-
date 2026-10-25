@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+* Fix a subpixel mismatch in carried-frame colour validation: sample history colour at the continuous
+  reprojected position instead of rounding it while interpolating the residual. This targets detail
+  dropping in and out around moving character silhouettes and building edges, independently of the sky option.
+* Add a Windows WARP regression for fractional motion, silhouette detail, both colour domains, and
+  rejection of changed surfaces, with the previous shader as a failing control.
+
+The NTE recording confirms that 2026.10.3 did not resolve the reported flicker. This further correction
+is a candidate fix; improvement in NTE still needs an in-game comparison.
+
 ## 2026.10.3
 
 **Fixed**

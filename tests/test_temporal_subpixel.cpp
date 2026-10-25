@@ -18,7 +18,7 @@ int main(int argc, char **argv)
             for (float ratio : {0.0f, 1.0f})
                 for (bool disoccluded : {false, true}) {
                     Image now(kW, kH), then(kW, kH);
-                    std::vector<float> depth(kW * kH), chain(kW * kH * 2);
+                    std::vector<float> depth(kW * kH), depthF(kW * kH), chain(kW * kH * 2);
                     auto value = [](int x) { return (x & 1) ? 0.75f : 0.125f; };
                     for (UINT y = 0; y < kH; ++y)
                         for (UINT x = 0; x < kW; ++x) {
@@ -31,6 +31,7 @@ int main(int argc, char **argv)
                             const UINT i = y * kW + x;
                             // Include an actual guide silhouette amid fine window-like detail.
                             depth[i] = x < kW / 2 ? 0.2f : 0.8f;
+                            depthF[i] = float(x) < float(kW / 2) + shift ? 0.2f : 0.8f;
                             chain[i * 2] = shift;
                         }
                     std::vector<ComPtr<ID3D11ShaderResourceView>> keep;
@@ -40,7 +41,7 @@ int main(int argc, char **argv)
                     set(2, gpu.Srv(Image(kW, kH, {0.125f, 0.125f, 0.125f, 0.0f})));
                     set(4, gpu.Srv(kW, kH, DXGI_FORMAT_R32G32_FLOAT, chain.data(), 2 * sizeof(float)));
                     set(5, gpu.Srv(kW, kH, DXGI_FORMAT_R32_FLOAT, depth.data(), sizeof(float)));
-                    views[6] = views[5];
+                    set(6, gpu.Srv(kW, kH, DXGI_FORMAT_R32_FLOAT, depthF.data(), sizeof(float)));
                     set(11, gpu.Srv(Image(kW, kH, {0, 0, 0, 1}))); // use current depth
                     const Root root = Constants({0, 1, 0, 0.05f}, {0.08f, 1, 0, 0}, {0, float(kLowW), float(kLowH), 1}, {0, 24, ratio, 1});
                     const auto out = Run(gpu, shader, views, root, {kW, kH}, Native(kW, kH));
@@ -51,6 +52,8 @@ int main(int argc, char **argv)
                             Require(add[3] <= 0.001f, "changed surface was incorrectly accepted");
                             Require(std::abs(add[0]) < 0.001f, "changed surface inherited stale detail");
                         } else {
+                            if (std::abs(add[3] - 1.0f) >= 0.001f)
+                                std::fprintf(stderr, "FAIL: x=%u shift=%g ratio=%g acceptance=%g addition=%g\n", x, shift, ratio, add[3], add[0]);
                             Require(std::abs(add[3] - 1.0f) < 0.001f, "matching subpixel edge was rejected");
                             Require(std::abs(add[0] - 0.125f) < 0.001f, "matching subpixel edge lost NR detail");
                             legacyLoss = std::max(legacyLoss, std::abs(old[1].at(x, kH / 2)[0] - 0.125f));
