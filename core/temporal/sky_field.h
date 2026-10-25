@@ -12,7 +12,7 @@ struct Constants;
 // The sky field (TemporalSkyField, shaders/temporal_sky.hlsli): the residual averaged over the far-plane pixels of its
 // pass, on the low-res grid, filled by push-pull. Carried frames give it, at each pixel's own screen position, to the
 // pixels whose current depth is the far plane, instead of the residual carried along a chain that a sky pixel does not
-// really have; a publish frame's phase-in leaves those pixels the new residual alone. A carried frame weighs the field
+// really have; full frames use the same field to avoid alternating detailed and smooth sky. A carried frame weighs the field
 // by how much of its own sky the pass saw (fix round 2): it measures its share of sky on the same lattice, and where
 // the pass saw much less (a reveal) the ordinary carry stays.
 //
@@ -27,6 +27,7 @@ public:
     // False (and nothing allocated) when a level cannot be created; the caller then leaves the field off.
     bool Create(ID3D12Device *device, std::uint32_t lowWidth, std::uint32_t lowHeight);
     bool Created() const { return count_ != 0; }
+    bool Built() const { return built_; }
     // The field no longer belongs to the residual in place (a reset, a residual recorded without it).
     void Reset() { built_ = false; }
     // From the residual and the residual frame's depth snapshot (m.residual and m.depthF, both readable).

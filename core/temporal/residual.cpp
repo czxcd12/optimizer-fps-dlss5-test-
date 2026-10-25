@@ -152,14 +152,31 @@ void Machine::RecordResidual(ID3D12GraphicsCommandList *cmd, const FrameInputs &
 }
 
 // A full pass shown as "the frame + the residual being phased in" instead of the model's raw answer
-// (26.28, PSApply). Only recorded while a phase-in is running: with the full share it would only add
-// the residual's half-float rounding to what the model already produced.
+// (26.28, PSApply). The sky field also runs without a phase-in, including the first pass: otherwise
+// full and carried frames alternate detailed and smooth sky. Outside sky, preserve the raw answer.
 void Machine::RecordApply(ID3D12GraphicsCommandList *cmd, const FrameInputs &rawIn, ID3D12Resource *hostOutput,
                           D3D12_RESOURCE_STATES hostOutputState, std::uint32_t dstX, std::uint32_t dstY, UINT outputSubresource)
 {
     Resources &m = *res_;
-    if (rawIn.rawFull || !PhaseInActive() || hostOutput == nullptr) return;
+    const bool ramp = PhaseInActive();
+    const bool sky = rawIn.skyField && rawIn.allowSky && rawIn.debugVis == 0 && !rawIn.rawInterpolation && m.sky.Built();
+    if (rawIn.rawFull || (!ramp && !sky) || m.applyPso == nullptr || hostOutput == nullptr) return;
     const FrameInputs in = m.Resolve(rawIn);
+    if (!ramp) {
+        // Apply writes only sky in this mode. Seed its destination with the full answer so
+        // unsupported sky and geometry retain their exact bits, including offset subresources.
+        BarrierExternal(cmd, hostOutput, hostOutputState, D3D12_RESOURCE_STATE_COPY_SOURCE, outputSubresource);
+        Barrier(cmd, m.interp, m.interpState, D3D12_RESOURCE_STATE_COPY_DEST);
+        D3D12_TEXTURE_COPY_LOCATION src{}, dst{};
+        src.pResource = hostOutput;
+        src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        src.SubresourceIndex = outputSubresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES ? 0 : outputSubresource;
+        dst.pResource = m.interp;
+        dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        const D3D12_BOX box{dstX, dstY, 0, dstX + m.nativeW, dstY + m.nativeH, 1};
+        cmd->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
+        BarrierExternal(cmd, hostOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, hostOutputState, outputSubresource);
+    }
     BarrierExternal(cmd, in.color, in.colorState, kReadable, in.colorSubresource);
     BarrierExternal(cmd, in.depth, in.depthState, kReadable, in.depthSubresource);
     Barrier(cmd, m.residual, m.residualState, kReadable);
@@ -171,8 +188,11 @@ void Machine::RecordApply(ID3D12GraphicsCommandList *cmd, const FrameInputs &raw
     key.res[2] = m.residual; key.fmt[2] = kResidualFormat;
     key.res[5] = in.depth; key.fmt[5] = in.depthView; // which pixels are sky, with the field (t20) of this pass
     key.res[10] = m.residualOld; key.fmt[10] = kResidualFormat;
-    m.sky.Bind(cmd, key, in.skyField && in.allowSky);
-    m.Dispatch(cmd, kApply, m.Target(kTargetInterp), m.nativeW, m.nativeH, key, m.BaseConstants(in));
+    m.sky.Bind(cmd, key, sky);
+    key.res[SkyField::kNowSlot] = nullptr; // Apply uses this pass's field, never a stale carried-frame measurement.
+    Constants c = m.BaseConstants(in);
+    c.params[0] = ramp ? 0.0f : 1.0f; // no ramp: only sky pixels overwrite the copied answer
+    m.Dispatch(cmd, kApply, m.Target(kTargetInterp), m.nativeW, m.nativeH, key, c);
     BarrierExternal(cmd, in.depth, kReadable, in.depthState, in.depthSubresource);
     BarrierExternal(cmd, in.color, kReadable, in.colorState, in.colorSubresource);
     CopyInterp(cmd, hostOutput, hostOutputState, dstX, dstY, outputSubresource);

@@ -384,12 +384,8 @@ int WarpedBody(EvalContext &c)
                     st.temporal->RecordResidual(cmd, tinR, st.unpackTarget, st.unpackState);
                 }
                 c.stage = StageCopyOut;
-                if (c.temporalActive && !c.transferDeclined && st.temporal->PhaseInActive()) {
-                    // 26.28: while a pass is being phased in, the full frame is shown as "colour + the
-                    // residual mix" too; otherwise it would still snap to the model's new version once
-                    // per cadence while only the carried frames faded.
-                    st.temporal->RecordApply(cmd, tinB, c.output, c.outputResource.restState, c.outputRect.x, c.outputRect.y, c.outputResource.subresource);
-                } else if (st.warpPath == warp::PackPath::Pixel || c.temporalActive) {
+                const bool applyRamp = c.temporalActive && !c.transferDeclined && !tinB.rawFull && st.temporal->PhaseInActive();
+                if (!applyRamp && (st.warpPath == warp::PackPath::Pixel || c.temporalActive)) {
                     // Into the host's output region: its texture may be larger than the frame (and may
                     // carry more mips), where a whole-resource copy would be invalid.
                     Barrier(cmd, st.unpackTarget, st.unpackState, D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -400,6 +396,10 @@ int WarpedBody(EvalContext &c)
                     cmd->CopyTextureRegion(&dst, c.outputRect.x, c.outputRect.y, 0, &src, &box);
                     BarrierExternal(cmd, c.output, D3D12_RESOURCE_STATE_COPY_DEST, c.outputResource.restState, c.outputResource.subresource);
                 }
+                // Without a ramp, Apply preserves the copied answer outside sky. With a ramp it
+                // writes the whole frame; both paths show the same sky field as skipped frames.
+                if (c.temporalActive && !c.transferDeclined)
+                    st.temporal->RecordApply(cmd, tinB, c.output, c.outputResource.restState, c.outputRect.x, c.outputRect.y, c.outputResource.subresource);
             }
             }
             ++Ctx().status.evaluations;

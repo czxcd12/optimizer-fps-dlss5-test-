@@ -1,4 +1,4 @@
-// The sky field (2026.10.2, TemporalSkyField): what a carried frame adds to the flat sky.
+// The sky field (2026.10.2, TemporalSkyField): what full and carried frames add to the flat sky.
 //
 // A sky pixel that entered from the screen edge, or that an object uncovered after the last full pass, has no
 // source in the residual's frame. Its chain still ends somewhere inside that frame: on a featureless sky the
@@ -9,7 +9,7 @@
 // pixels of the pass, on the low-res grid, with the cells that hold no sky filled by push-pull. Sampled at the
 // screen position it cannot turn wrong chain ends into patches; during motion its tone is slightly misplaced, which
 // on a low-frequency sky edit does not show. The policy is applied where the frame is formed, at native resolution
-// (PSCompose and its grid variant, CSReproject's direct route); the reprojection and its acceptance are untouched.
+// (CSApply, PSCompose and its grid variant, CSReproject's direct route); the reprojection and its acceptance are untouched.
 //
 // The field speaks only for the sky the pass saw. When a carried frame shows much more sky than that (a reveal: the
 // camera leaves a hall, a doorway opens), the pass's few sky blocks, often a strip the model darkened beside the wall
@@ -52,14 +52,21 @@ float PwTSkyWeight()
 // Where a carried frame's final addition is formed: for a sky pixel the field's addition, bilinear at its screen
 // position, and the weight it takes (PwTSkyWeight); 0 and no value for any other pixel. The caller mixes the value
 // into the addition it formed as before (PwTSkyMix), adds that to the encoded colour, then decodes and limits as before.
-float PwTSkyAt(float2 nativePixel, out float3 value)
+// Full passes use the same field, but not the carried frame's coverage measurement (t21): it may
+// still belong to an earlier frame. The field already describes the full pass's own sky.
+bool PwTSkySample(float2 nativePixel, out float3 value)
 {
     value = float3(0.0, 0.0, 0.0);
-    if (!PwTSkyPixel(nativePixel)) return 0.0;
+    if (!PwTSkyPixel(nativePixel)) return false;
     const float3 f = PwTSkyField.SampleLevel(PwTLinearClamp, nativePixel * PwTNative.zw, 0.0).rgb;
-    if (any(!isfinite(f))) return 0.0;
+    if (any(!isfinite(f))) return false;
     value = f;
-    return PwTSkyWeight();
+    return true;
+}
+
+float PwTSkyAt(float2 nativePixel, out float3 value)
+{
+    return PwTSkySample(nativePixel, value) ? PwTSkyWeight() : 0.0;
 }
 
 // A pixel's addition: the one formed as before at weight 0 and the field's at weight 1, bit for bit; a blend between.

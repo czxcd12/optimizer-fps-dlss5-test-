@@ -25,9 +25,8 @@ int FinishWarpCodec(EvalContext &c)
         auto tin = TemporalInputsWithBase(c);
         tin.residualBlend = Ctx().temporal.debugSingleFrameMotion ? 0.0f : kResidualBlend;
         st.temporal->RecordResidual(c.cmd, tin, codec.frame.output.res, codec.frame.output.restState, codec.frame.output.subresource);
-        if (st.temporal->PhaseInActive())
-            st.temporal->RecordApply(c.cmd, tin, codec.frame.output.res, codec.frame.output.restState,
-                codec.frame.output.rect.x, codec.frame.output.rect.y, codec.frame.output.subresource);
+        st.temporal->RecordApply(c.cmd, tin, codec.frame.output.res, codec.frame.output.restState,
+            codec.frame.output.rect.x, codec.frame.output.rect.y, codec.frame.output.subresource);
     }
     return OFPS_OK;
 }

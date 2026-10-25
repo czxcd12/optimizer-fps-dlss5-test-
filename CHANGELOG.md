@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026.10.3
+
+**Fixed**
+
+* **Consistent sky between NR runs.** With **Smooth sky in carried frames** enabled, full NR frames now use the
+  same smoothed sky correction as the frames between them. Previously, detailed and smoothed corrections
+  alternated at the NR cadence, which could cause persistent sky flicker, especially at N=2. The correction
+  also applies on the first full frame and with phase-in disabled. Pixels outside the sky retain the existing
+  phase-in behavior; without phase-in, the model's output there is preserved exactly.
+* The raw-full diagnostic now retains the model's output on the warped render path during a phase-in.
+
+This fixes a source-level mismatch identified while investigating flicker in NTE. Confirmation in NTE on an
+NVIDIA GPU is still pending; the automated regression covers a stationary N=2 sky, both depth conventions,
+the native/grid/direct paths, and phase-in enabled or disabled.
+
 ## 2026.10.2
 
 With a temporal mode, swaying trees and grass keep more of their NR look between the model's runs, also while the

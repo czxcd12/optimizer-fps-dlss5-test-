@@ -175,20 +175,45 @@ void TestApply(Gpu &gpu, const SkyShaders &s)
     FrameInputs off = ComposeInputs(gpu, Frame(false), fresh, depth);
     off.Set(10, gpu.Srv(older));
     FrameInputs on = off;
-    on.Set(kField, gpu.Srv(FlatField(0.0f, kSupport)));
+    const Image field = GradientField(kSupport), color = Frame(false);
+    on.Set(kField, gpu.Srv(field));
+    // A stale carried frame's coverage must not suppress the full pass's own field.
+    on.Set(kNow, gpu.Srv(NowShare(1.0f)));
     const Image mixedOn = Run(gpu, s.apply, on.views, root(0.5f), {kW, kH}, Native(kW, kH))[0];
     const Image mixedOff = Run(gpu, s.apply, off.views, root(0.5f), {kW, kH}, Native(kW, kH))[0];
     const Image newOnly = Run(gpu, s.apply, off.views, root(1.0f), {kW, kH}, Native(kW, kH))[0];
+    Root skyOnlyRoot = root(1.0f);
+    skyOnlyRoot[20] = 1.0f; // PwTParams.x: preserve the prefilled model answer outside sky
+    const Texel sentinel{0.375f, 0.625f, 0.75f, 0.25f};
+    const Image skyOnly = Run(gpu, s.apply, on.views, skyOnlyRoot, {kW, kH}, Native(kW, kH, sentinel))[0];
+    const Image unchanged(kW, kH, sentinel);
+    Require(SameBits(Run(gpu, s.apply, off.views, skyOnlyRoot, {kW, kH}, Native(kW, kH, sentinel))[0], unchanged),
+            "(5) sky-only Apply with no field changed the model answer");
+    for (const float support : {0.0f, 1.0f / 128.0f}) {
+        FrameInputs unsupported = on;
+        unsupported.Set(kField, gpu.Srv(FlatField(0.25f, support)));
+        Require(SameBits(Run(gpu, s.apply, unsupported.views, skyOnlyRoot, {kW, kH}, Native(kW, kH, sentinel))[0], unchanged),
+                "(5) sky-only Apply without enough support changed the model answer");
+    }
     std::size_t sky = 0;
     for (UINT y = 0; y < kH; ++y)
         for (UINT x = 0; x < kW; ++x) {
             const bool isSky = IsSky(depth, x, y, 1.0f);
             sky += isSky ? 1 : 0;
-            Require(SameBits(mixedOn.at(x, y), isSky ? newOnly.at(x, y) : mixedOff.at(x, y)),
-                    isSky ? "(5) a sky pixel of the phase-in is not the new residual alone" : "(5) the phase-in changed a pixel off the far plane");
+            if (isSky) {
+                const Texel f = SampleField(field, x, y);
+                for (int c = 0; c < 3; ++c)
+                    Require(std::abs(mixedOn.at(x, y)[c] - color.at(x, y)[c] - f[c]) < 2e-5f,
+                            "(5) full-frame sky differs from the carried-frame field");
+                Require(SameBits(skyOnly.at(x, y), mixedOn.at(x, y)), "(5) sky treatment depends on phase-in");
+            } else {
+                Require(SameBits(mixedOn.at(x, y), mixedOff.at(x, y)), "(5) the phase-in changed a pixel off the far plane");
+                Require(SameBits(skyOnly.at(x, y), sentinel), "(5) sky-only Apply changed the prefilled model answer");
+            }
         }
     Require(!SameBits(mixedOff, newOnly), "(5) the scene cannot tell the mix from the new residual");
-    std::printf("(5) Apply during a phase-in: %zu sky pixels show the new residual alone, the rest the mix as before\n", sky);
+    Require(!SameBits(mixedOn, newOnly), "(5) the scene cannot distinguish detailed and smooth sky");
+    std::printf("(5) Apply: %zu sky pixels use the carried-frame field, with and without phase-in\n", sky);
 }
 
 // NaN/Inf in the depth, the field and the carried addition. Where the policy applies (a finite far-plane depth, a

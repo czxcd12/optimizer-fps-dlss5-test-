@@ -313,15 +313,21 @@ void CSReprojectGrid(uint3 id : SV_DispatchThreadID)
 void CSApply(uint3 id : SV_DispatchThreadID)
 {
     if (PwTOutside(id.xy)) return;
+    float3 sky;
+    const bool useSky = PwTSkySample(float2(id.xy) + 0.5, sky);
+    // With no phase-in, u0 starts as a copy of the model's answer. Touch only supported sky
+    // pixels, preserving every other pixel (including alpha) without a residual round trip.
+    if (PwTParams.x > 0.5 && !useSky) return;
     const float4 frame = PwTLoadFrame(PwTColor, int3(int2(PwTToRect(float2(id.xy) + 0.5, PwTColorRect)), 0));
     float3 residual = PwTResidual.Load(int3(id.xy, 0)).rgb;
-    // A sky pixel (temporal_sky.hlsli) shows the new residual alone: the old pass's sky, moved here along chains a sky
-    // pixel does not really have, would bring back the patches the carried frames no longer show.
+    // Sky must use the same smooth field as the carried frames. Alternating the detailed
+    // residual here with the field on skipped frames causes flicker even with a still camera.
     if (PwTSmooth.w > 0.0 && PwTSmooth.w < 1.0 && !PwTSkyPixel(float2(id.xy) + 0.5))
     {
         const float3 older = PwTResidualOld.Load(int3(id.xy, 0)).rgb;
         if (all(isfinite(older))) residual = lerp(older, residual, PwTSmooth.w);
     }
+    if (useSky) residual = sky;
     if (any(!isfinite(residual))) residual = 0.0;
     PwTOut0[id.xy] = float4(PwTLimitToFrame(PwTDecodeFrame(frame.rgb + residual), id.xy), frame.a);
 }

@@ -191,6 +191,7 @@ public:
     // 26.28: a new pass is phased in and this frame must be shown as "colour + the residual mix"
     // (RecordApply) rather than as the model's raw answer.
     bool PhaseInActive() const;
+    // Also applies the sky field without a phase-in, preserving the model answer already in hostOutput elsewhere.
     void RecordApply(ID3D12GraphicsCommandList *cmd, const FrameInputs &in, ID3D12Resource *hostOutput,
                      D3D12_RESOURCE_STATES hostOutputState, std::uint32_t dstX, std::uint32_t dstY, UINT outputSubresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
     // The colour as it is into `target` at (dstX, dstY), without advancing the displayed residual's phase

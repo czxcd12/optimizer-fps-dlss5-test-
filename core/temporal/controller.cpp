@@ -402,9 +402,8 @@ int NativeTemporalBody(NativeTemporal &n)
     }
     tinR.residualBlend = Ctx().temporal.debugSingleFrameMotion ? 0.0f : kResidualBlend;
     st.temporal->RecordResidual(cmd, tinR, n.output, n.frame.output.restState, n.frame.output.subresource);
-    // 26.28: while a pass is being phased in, the full frame is shown as "colour + the residual mix"
-    // too - otherwise the phase-in would only steady the carried frames and the full frame itself
-    // would still snap to the model's new version once per cadence.
+    // Apply the phase-in and the same sky field used by carried frames. The sky field also
+    // applies on the first pass and without a phase-in, preserving the answer outside sky.
     st.temporal->RecordApply(cmd, tinR, n.output, n.frame.output.restState, n.outputRect.x, n.outputRect.y, n.frame.output.subresource);
     st.temporal->RecordFlowCapture(cmd, tinR, st.realDevice, st.device, true);
     n.stage = StageDone;

@@ -15,6 +15,7 @@ int TestTemporalSkyMachine(ID3D12Device *device, ID3D12CommandQueue *queue, cons
                            const char *round1Fixture);
 int TestTemporalSkyBackground(ID3D12Device *device, ID3D12CommandQueue *queue, const char *shaderDirectory, const char *masterFixture,
                               const char *sharedRectDirectory);
+int TestTemporalSkyCadence(ID3D12Device *device, ID3D12CommandQueue *queue, const char *shaderDirectory);
 
 int main(int argc, char **argv)
 {
@@ -39,6 +40,7 @@ int main(int argc, char **argv)
     }
     int failures = TestTemporalSkyMachine(device.Get(), queue.Get(), argv[1], argv[2], argv[3]);
     failures += TestTemporalSkyBackground(device.Get(), queue.Get(), argv[1], argv[2], argv[4]);
+    failures += TestTemporalSkyCadence(device.Get(), queue.Get(), argv[1]);
     ComPtr<ID3D12InfoQueue> info;
     if (debug && SUCCEEDED(device.As(&info))) {
         for (UINT64 i = 0, n = info->GetNumStoredMessages(); i < n; ++i) {

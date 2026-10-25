@@ -126,10 +126,12 @@ that grew until the next full pass.
 
 **Smooth sky in carried frames** (`TemporalSkyField=1`, on by default): every full pass also averages its edit over
 the pixels that lie exactly at the far plane of the depth buffer (1.0, or 0.0 with reversed depth) on a coarse grid,
-and fills the cells without sky from their neighbours. A carried frame gives each far-plane pixel that smooth edit at
-the pixel's own screen position instead of the carried one; every other pixel is untouched. A full frame fading in a
-new pass shows the new pass's sky directly. The sky's finest detail on carried frames is traded for smoothness; full
-frames still show the model's own sky. The rule only runs when at least 2 % of the full pass was sky, and not on menu
+and fills the cells without sky from their neighbours. Both full and carried frames give each far-plane pixel that
+smooth edit at the pixel's own screen position. This includes the first full pass and full passes with phase-in
+disabled: alternating the detailed model edit on full frames with its smooth version on carried frames caused
+visible sky flicker at the NR cadence, even with a stationary camera. Sky edit detail is traded for consistency;
+the game's underlying sky color is preserved. Outside sky, the existing phase-in remains unchanged, and a full
+frame without phase-in preserves the model's answer exactly. The rule only runs when at least 2 % of the full pass was sky, and not on menu
 frames. Each carried frame also measures its own share of sky on the same coarse grid and compares it with the full
 pass's: when the pass saw much less sky than the frame shows (the camera leaves a building, a doorway opens), the
 pass's few sky cells would paint their edit, often darkened beside the wall they border, over all the newly revealed

@@ -321,6 +321,7 @@ endif()
 # TemporalSkyField through the machine on D3D12 WARP: whole sequences against master's passes with the setting off.
 if(TARGET ofps_shaders)
     add_executable(ofps_temporal_sky_tests test_temporal_sky.cpp test_temporal_sky_machine.cpp test_temporal_sky_background.cpp
+        test_temporal_sky_cadence.cpp
         temporal_background_driver.h temporal_d3d12_fixture.h)
     target_link_libraries(ofps_temporal_sky_tests PRIVATE ofps_core d3d12 dxgi)
     target_compile_features(ofps_temporal_sky_tests PRIVATE cxx_std_20)
