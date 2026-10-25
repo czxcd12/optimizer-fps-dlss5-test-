@@ -34,7 +34,8 @@ void Reproject(Gpu &gpu, const SkyShaders &now, const SkyShaders &master, const 
         if (c.bound) views[kField] = field.Get();
         for (const auto &k : kReprojectConfigs)
             for (const std::uint32_t skip : {0u, 1u}) {
-                const Root root = WithSky(ReprojectConstants(k), 1.0f);
+                Root root = WithSky(ReprojectConstants(k), 1.0f);
+                root[24] = 0.0f; // isolate sky policy from the legacy nearest-colour gate
                 const Texel sentinel{12345.0f, -6789.0f, 42.0f, 7.0f};
                 const Lanes lanes{kW, kH, 0, 0, 0, skip, 0, 0};
                 const auto a = Run(gpu, now.reproject, views, root, lanes, Native(kW, kH, sentinel));

@@ -171,6 +171,13 @@ if(WIN32 AND OFPS_BUILD_D3D_ADAPTERS AND OFPS_COMPILE_SHADERS)
             "${PROJECT_SOURCE_DIR}/core/shaders/temporal_passes.def" "${OFPS_SHADER_OUTPUT_DIR}" "${OFPS_FXC_EXECUTABLE}")
     # The carried-frame grid's passes (ReprojectGrid, CellsGrid, ComposeGrid) on WARP, and Reproject, Cells and
     # Compose against the pre-step-B baseline committed in fixtures/temporal_pre_grid (byte for byte).
+    add_executable(ofps_temporal_subpixel_tests test_temporal_subpixel.cpp)
+    add_dependencies(ofps_temporal_subpixel_tests ofps_shaders)
+    target_compile_features(ofps_temporal_subpixel_tests PRIVATE cxx_std_20)
+    target_compile_options(ofps_temporal_subpixel_tests PRIVATE /W4 /WX /EHsc /permissive-)
+    target_link_libraries(ofps_temporal_subpixel_tests PRIVATE d3d11)
+    add_test(NAME ofps_temporal_subpixel COMMAND ofps_temporal_subpixel_tests
+        "${OFPS_SHADER_OUTPUT_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/temporal_pre_sky")
     add_executable(ofps_temporal_grid_shaders_tests test_temporal_grid_shaders.cpp temporal_grid_scenes.h temporal_cs_harness.h)
     add_dependencies(ofps_temporal_grid_shaders_tests ofps_shaders)
     target_compile_features(ofps_temporal_grid_shaders_tests PRIVATE cxx_std_20)

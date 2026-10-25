@@ -1,0 +1,35 @@
+name: temporal-regression
+on:
+  workflow_dispatch:
+  push:
+    branches: ['fix/nte-subpixel-carry']
+permissions:
+  contents: read
+jobs:
+  warp:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: external
+          key: pw-external-v1-${{ runner.os }}-${{ hashFiles('DEPENDENCIES.lock.json', 'cmake/Dependencies.cmake') }}
+      - name: Build edge and sky regressions
+        shell: pwsh
+        run: |
+          cmake --preset windows-x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build --preset windows-x64-release --parallel --target ofps_temporal_subpixel_tests ofps_temporal_grid_shaders_tests ofps_temporal_sky_shaders_tests
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Run WARP regressions
+        shell: pwsh
+        run: |
+          ctest --preset windows-x64-release --output-on-failure -R '^ofps_temporal_(subpixel|grid_shaders|sky_shaders)$' 2>&1 | Tee-Object -Variable result
+          $code = $LASTEXITCODE
+          if ($code) {
+            foreach ($line in $result) {
+              if ("$line" -match 'FAIL:|error') { Write-Output "::error::$line" }
+            }
+          }
+          exit $code

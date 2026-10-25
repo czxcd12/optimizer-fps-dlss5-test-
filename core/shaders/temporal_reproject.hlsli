@@ -264,6 +264,17 @@ bool PwTOnSilhouette(float2 p)
     return PwTDepthMismatch(lo, hi) > PwTParams.w;
 }
 
+// Validate colour at the same continuous history position used to fetch the residual.
+// A point Load rounds q to a different position: at a subpixel-moving hair/building
+// edge it can reject an otherwise correct carry, alternating NR detail with fill.
+float3 PwTReprojectColour(float2 q)
+{
+    uint width, height;
+    PwTColorF.GetDimensions(width, height);
+    return PwTEncodeFrame(PwTColorF.SampleLevel(PwTLinearClamp,
+        PwTRectUv(q, PwTColorRect, float2(width, height)), 0.0).rgb);
+}
+
 float4 PwTReproject(PwFullscreenVertex input, out float accepted, out float3 health)
 {
     accepted = 1.0;
@@ -309,7 +320,7 @@ float4 PwTReproject(PwFullscreenVertex input, out float accepted, out float3 hea
         {
             // Colour consistency: the residual's frame must have shown the same thing at q (wrong vectors,
             // disocclusions the depth test misses - teeth behind lips -, HUD, transparency).
-            float3 cf = PwTLoadFrame(PwTColorF, int3(PwTRectTexel(qk, PwTColorRect), 0)).rgb;
+            float3 cf = PwTReprojectColour(qk);
             wk *= PwTColourGate(ck, cf, PwTTune.x);
             // On a silhouette the pixel's vector may be the other surface's (the guides' edge is not the
             // frame's), and the gate above forgives too much to notice on dark things: dark wall took dark
