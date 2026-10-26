@@ -14,8 +14,8 @@
 // TemporalSkyField on the spread schedule (ModelPasses 2, SpreadPasses 1, TemporalMode 1 every 3rd frame, Mode Off)
 // through the core API, over a host depth whose top half is the far plane (1.0). The hidden stage's carried frame
 // (the second pass's model input) and the shown machine's carried frames are both formed with the sky field:
-//  - (9) TemporalSkyField=0 from the first frame: every output and every model input is byte for byte what master's
-//    four changed passes (tests/fixtures/temporal_pre_sky, swapped into the core's shader set) produce;
+//  - (9) TemporalSkyField=0 from the first frame: every output and model input matches pre-sky composition
+//    (tests/fixtures/temporal_pre_sky), using current reprojection in both sequences;
 //  - TemporalSkyField=1 changes the hidden stage's carried frames (pass 2 sees the field) and the shown frames.
 // Static core only: the swap edits the core's loaded shader set (core/context.h).
 namespace coretest {
@@ -86,21 +86,22 @@ bool LoadBinary(const std::filesystem::path &path, std::vector<char> &code) {
     return !code.empty();
 }
 
-// Master's Reproject, Compose, ComposeGrid and Apply in the core's loaded set while it lives; machines created then
-// (a new feature's) build their pipelines from them.
-struct MasterPasses {
+// Swap only pre-sky Compose, ComposeGrid and Apply. Keep current Reproject: its
+// corrected subpixel colour validation is independent of the sky option. New features
+// build pipelines from this set; the destructor restores every swapped binary.
+struct PreSkyComposition {
     ofps::core::gpu::Shaders &shaders = ofps::core::Ctx().shaders;
-    std::vector<char> *slots[4] = {&shaders.temporalReproject, &shaders.temporalCompose, &shaders.temporalComposeGrid, &shaders.temporalApply};
-    std::vector<char> saved[4];
+    std::vector<char> *slots[3] = {&shaders.temporalCompose, &shaders.temporalComposeGrid, &shaders.temporalApply};
+    std::vector<char> saved[3];
     bool ok = true;
-    MasterPasses() {
-        const char *names[4] = {"temporal_Reproject_cs.dxbc", "temporal_Compose_cs.dxbc", "temporal_ComposeGrid_cs.dxbc", "temporal_Apply_cs.dxbc"};
-        for (int i = 0; i < 4; ++i) {
+    PreSkyComposition() {
+        const char *names[3] = {"temporal_Compose_cs.dxbc", "temporal_ComposeGrid_cs.dxbc", "temporal_Apply_cs.dxbc"};
+        for (int i = 0; i < 3; ++i) {
             saved[i] = *slots[i];
             ok = LoadBinary(std::filesystem::path(OFPS_SKY_MASTER_DIR) / names[i], *slots[i]) && ok;
         }
     }
-    ~MasterPasses() { for (int i = 0; i < 4; ++i) *slots[i] = saved[i]; }
+    ~PreSkyComposition() { for (int i = 0; i < 3; ++i) *slots[i] = saved[i]; }
 };
 
 bool Same(const std::vector<std::vector<std::uint8_t>> &a, const std::vector<std::vector<std::uint8_t>> &b) {
@@ -129,21 +130,21 @@ void ScenarioSkySpread(WarpDevice &w, IOfpsCore *core, HostFrame &frame) {
     };
     with(0);
     const Recorded off = Record(w, core, frame, depth.Get(), kFrames);
-    Recorded master;
+    Recorded reference;
     {
-        MasterPasses swap;
-        Check(swap.ok, "sky spread: master's passes load");
-        master = Record(w, core, frame, depth.Get(), kFrames);
+        PreSkyComposition swap;
+        Check(swap.ok, "sky spread: pre-sky composition passes load");
+        reference = Record(w, core, frame, depth.Get(), kFrames);
     }
     with(1);
     const Recorded on = Record(w, core, frame, depth.Get(), kFrames);
     Check(off.runs >= 8 && off.inputs.size() == off.runs, "sky spread: both stages ran in every cycle");
-    Check(Same(off.outputs, master.outputs) && Same(off.inputs, master.inputs),
-          "sky spread (9): TemporalSkyField=0 from the first frame writes master's bytes, outputs and model inputs");
+    Check(Same(off.outputs, reference.outputs) && Same(off.inputs, reference.inputs),
+          "sky spread (9): sky off matches pre-sky composition with current reprojection, outputs and model inputs");
     std::size_t inputsChanged = 0, outputsChanged = 0;
     for (std::size_t i = 0; i < off.inputs.size() && i < on.inputs.size(); ++i) inputsChanged += off.inputs[i] != on.inputs[i] ? 1 : 0;
     for (std::size_t i = 0; i < off.outputs.size() && i < on.outputs.size(); ++i) outputsChanged += off.outputs[i] != on.outputs[i] ? 1 : 0;
-    std::printf("sky spread: off = master over %zu frames and %zu model inputs, bit for bit; on changes %zu model inputs (the "
+    std::printf("sky spread: off = pre-sky composition over %zu frames and %zu model inputs, bit for bit; on changes %zu model inputs (the "
                 "second pass's carried frames) and %zu frames\n", off.outputs.size(), off.inputs.size(), inputsChanged, outputsChanged);
     std::fflush(stdout);
     Check(inputsChanged > 0, "sky spread: the hidden stage's carried frame (pass 2's input) does not take the sky field");
