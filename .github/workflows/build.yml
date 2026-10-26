@@ -146,3 +146,10 @@ jobs:
           name: optimizer-fps-dlss5-windows
           if-no-files-found: error
           path: out/artifact/
+
+      - name: Upload installer package
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimizer-fps-dlss5-windows-installer
+          if-no-files-found: error
+          path: ${{ runner.temp }}/ofps-build-release/Optimizer-FPS-for-DLSS5-*.zip
