@@ -6,6 +6,8 @@
 
 using namespace temporal_grid_scenes;
 
+void TestSilhouetteColour(Gpu &gpu, const std::vector<char> &shader, const std::vector<char> &legacy);
+
 int main(int argc, char **argv)
 {
     try {
@@ -13,6 +15,7 @@ int main(int argc, char **argv)
         Gpu gpu;
         const auto shader = ReadFile(std::filesystem::path(argv[1]) / "temporal_Reproject_cs.dxbc");
         const auto legacy = ReadFile(std::filesystem::path(argv[2]) / "temporal_Reproject_cs.dxbc");
+        TestSilhouetteColour(gpu, shader, legacy);
         float legacyLoss = 0.0f;
         for (float shift : {-0.75f, -0.5f, -0.25f, 0.0f, 0.25f, 0.5f, 0.75f, 1.0f})
             for (float ratio : {0.0f, 1.0f})

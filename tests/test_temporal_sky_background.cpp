@@ -6,7 +6,7 @@
 // the adoption frames say the right half (no sky) and reversed Z.
 //   - the adopted residual's field is built from the kick's depth as the kick described it: the following frames'
 //     sky is colour + the pass's sky residual; with the adoption frame's description (the bug of 83ad206) it is not;
-//   - (9) the setting off from the first frame writes master's bytes (tests/fixtures/temporal_pre_sky), and (6) a menu
+//   - (9) sky off matches pre-sky composition with current reprojection, and (6) a menu
 //     evaluation those of the setting off. The adoption frames describe their depth unlike the kick frames, and since
 //     2026.10.2 the depth snapshots are read through their own sub-rect (test_temporal_depth_rect.cpp), which master
 //     did not do: (9) compares both with the passes that read t6 built the old way (PW_T_DEPTHF_SHARED_RECT).
@@ -130,7 +130,10 @@ int TestTemporalSkyBackground(ID3D12Device *device, ID3D12CommandQueue *queue, c
           "sky background: the shared-rect passes load");
     Check(LoadShaders(shaderDirectory, master, true) && LoadDepthFSharedPasses(sharedRectDirectory, master) &&
               LoadMasterPasses(masterFixture, master),
-          "sky background: master's passes load");
+          "sky background: pre-sky composition passes load");
+    // As in the synchronous/spread tests, isolate sky composition from changes
+    // to carry acceptance. Retain this test's shared depth-rect convention.
+    master.temporalReproject = currentShared.temporalReproject;
     Recording r;
     Check(r.Create(device), "sky background: fixtures allocate");
     if (failures) return failures;
@@ -184,7 +187,7 @@ int TestTemporalSkyBackground(ID3D12Device *device, ID3D12CommandQueue *queue, c
         for (int f = 0; f < kFrames; ++f) if (!SameBits(picture(a, f), picture(b, f))) return false;
         return true;
     };
-    Check(same(5, 3), "sky background (9): the setting off from the first frame writes master's bytes");
+    Check(same(5, 3), "sky background (9): sky off matches pre-sky composition with current reprojection");
     Check(same(2, 4), "sky background (6): a menu evaluation writes the bytes of the setting off");
     // The frames that see the sky (the kick frames' description) after an adoption: colour + the adopted pass's sky residual.
     float worst[2] = {};
@@ -199,7 +202,7 @@ int TestTemporalSkyBackground(ID3D12Device *device, ID3D12CommandQueue *queue, c
         ++checked;
     }
     std::printf("sky background: %d carried frames after adoptions, sky = colour + the adopted pass's sky residual within %.3g; "
-                "with the adoption frame's depth description %.3g; off = master = menu, bit for bit\n", checked, worst[0], worst[1]);
+                "with the adoption frame's depth description %.3g; off = reference = menu, bit for bit\n", checked, worst[0], worst[1]);
     Check(worst[0] <= 2.0e-3f, "sky background: the adopted field does not classify the kick's depth as the kick described it");
     Check(worst[1] > 0.01f, "sky background: the scene cannot tell the kick's depth description from the adoption frame's");
     return failures;
