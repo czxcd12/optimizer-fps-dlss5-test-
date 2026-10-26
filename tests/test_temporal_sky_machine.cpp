@@ -2,7 +2,7 @@
 // RecordApply form the frames), whole sequences: three passes with a phase-in (sync), two carried frames after each,
 // on the native compose route, on a half grid and on the direct route (no compose pass). The scene is a sky (far
 // plane) around a building, with the whole frame moving, so sky chains run into the building.
-//   (9) the setting off from the first frame writes the same bytes as master's passes (tests/fixtures/temporal_pre_sky);
+//   (9) sky off matches pre-sky composition (tests/fixtures/temporal_pre_sky), with current reprojection on both sides;
 //   (6) a menu evaluation (allowSky false), and a machine without the sky shaders, write the bytes of the setting off;
 //   on: every sky pixel of every carried frame is colour + the pass's sky residual, and so is every sky pixel of a
 //   publish frame during its phase-in; (7) the same with reversed Z; a scene without sky writes the bytes of off;
@@ -100,10 +100,15 @@ float SkyDeviation(const Picture &picture, const float (&colour)[3], const float
 int TestTemporalSkyMachine(ID3D12Device *device, ID3D12CommandQueue *queue, const char *shaderDirectory, const char *masterFixture,
                            const char *round1Fixture)
 {
-    ofps::core::gpu::Shaders current, noSky, master, round1;
+    ofps::core::gpu::Shaders current, noSky, reference, round1;
     Check(LoadShaders(shaderDirectory, current, true) && LoadSkyShaders(shaderDirectory, current), "sky machine: the current shaders load");
     Check(LoadShaders(shaderDirectory, noSky, true) && !noSky.TemporalSkyLoaded(), "sky machine: a set without the sky passes loads");
-    Check(LoadShaders(shaderDirectory, master, true) && LoadMasterPasses(masterFixture, master), "sky machine: master's passes load");
+    Check(LoadShaders(shaderDirectory, reference, true) && LoadMasterPasses(masterFixture, reference),
+          "sky machine: pre-sky reference passes load");
+    // Isolate the sky-composition policy. The old Reproject rounds history colour;
+    // comparing against it would require reintroducing the subpixel edge bug.
+    // Sky-off/menu/missing-shader invariance below still exercises current reprojection.
+    reference.temporalReproject = current.temporalReproject;
     Check(LoadShaders(shaderDirectory, round1, true) && LoadSkyShaders(shaderDirectory, round1), "sky machine: round 1's set loads");
     ReadInto(std::filesystem::path(round1Fixture) / "temporal_Reproject_cs.dxbc", round1.temporalReproject);
     ReadInto(std::filesystem::path(round1Fixture) / "temporal_Compose_cs.dxbc", round1.temporalCompose);
@@ -147,7 +152,7 @@ int TestTemporalSkyMachine(ID3D12Device *device, ID3D12CommandQueue *queue, cons
     for (const Route route : {Route::Compose, Route::Grid, Route::Direct}) {
         runs.push_back({&current, &outdoor, route, true, true});  // on
         runs.push_back({&current, &outdoor, route, false, true}); // off from the first frame
-        runs.push_back({&master, &outdoor, route, false, true});  // master's passes
+        runs.push_back({&reference, &outdoor, route, false, true}); // pre-sky composition, current reprojection
         runs.push_back({&current, &outdoor, route, true, false}); // a menu evaluation
         runs.push_back({&noSky, &outdoor, route, true, true});    // the sky passes missing
     }
@@ -185,7 +190,7 @@ int TestTemporalSkyMachine(ID3D12Device *device, ID3D12CommandQueue *queue, cons
     const int residualOf[kOutputs] = {0, 0, 1, 1, 1, 0, 0, 0}; // outputs 0-1 pass 0, 2-4 pass 1, 5-7 pass 2
     for (std::size_t route = 0; route < 3; ++route) {
         const std::size_t on = route * 5, off = on + 1;
-        Check(same(off, on + 2), "sky machine (9): the setting off from the first frame writes master's bytes");
+        Check(same(off, on + 2), "sky machine (9): sky off matches pre-sky composition with current reprojection");
         Check(same(off, on + 3), "sky machine (6): a menu evaluation writes the bytes of the setting off");
         Check(same(off, on + 4), "sky machine: without the sky passes the frames are those of the setting off");
         Check(!same(on, off), "sky machine: the setting on changes the sky");
@@ -195,7 +200,7 @@ int TestTemporalSkyMachine(ID3D12Device *device, ID3D12CommandQueue *queue, cons
         float offWorst = 0.0f;
         for (int o = 0; o < kOutputs; ++o) offWorst = std::max(offWorst, SkyDeviation(picture(off, o), sky, skyResidual[residualOf[o]]));
         Check(offWorst > 0.01f, "sky machine: the scene cannot tell the carried sky from the field");
-        std::printf("sky machine, route %zu: off = master = menu = no sky passes, bit for bit; on: sky = colour + the pass's sky "
+        std::printf("sky machine, route %zu: off = reference = menu = no sky passes, bit for bit; on: sky = colour + the pass's sky "
                     "residual within %.3g (off: %.3g)\n", route, worst, offWorst);
         Check(worst <= 2.0e-3f, "sky machine: a sky pixel of a carried or publish frame is not colour + the pass's sky residual");
     }
