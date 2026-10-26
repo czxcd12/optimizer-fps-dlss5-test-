@@ -310,11 +310,13 @@ float4 PwTReproject(PwFullscreenVertex input, out float accepted, out float3 hea
             // Colour consistency: the residual's frame must have shown the same thing at q (wrong vectors,
             // disocclusions the depth test misses - teeth behind lips -, HUD, transparency).
             float3 cf = PwTReprojectColour(qk);
-            wk *= PwTColourGate(ck, cf, PwTTune.x);
-            // On a silhouette the pixel's vector may be the other surface's (the guides' edge is not the
-            // frame's), and the gate above forgives too much to notice on dark things: dark wall took dark
-            // hair's darkening. There the pixel itself has to look the same at both ends, strictly.
-            if (k == 0 && onSilhouette) wk *= PwTSameLook(ck, cf);
+            float colourWeight = PwTColourGate(ck, cf, PwTTune.x);
+            // Keep the strict test, but allow the colour variation measured on the
+            // same surface. Otherwise tiny AA changes toggle the silhouette's
+            // all-or-nothing carry decision even with correct motion and depth.
+            if (k == 0 && onSilhouette)
+                colourWeight = max(colourWeight * PwTSameLook(ck, cf), PwTSilhouetteColourGate(pk, dck, cf));
+            wk *= colourWeight;
         }
         w += wk * tapWeight[k];
         if (k == 0) wCentre = wk;

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Candidate NTE edge-stability correction: silhouette history can match the colour variation in a 3x3
+  neighbourhood restricted to matching-depth samples. This targets anti-aliasing changes that previously
+  switched the carried NR detail fully on or off. The strict point test remains a fallback; depth rejection
+  remains active. Add a regression for the old threshold jump and rejection of different-depth neighbours
+  and changed uniform surfaces. In-game effectiveness and performance remain unverified.
+
 * Fix a subpixel mismatch in carried-frame colour validation: sample history colour at the continuous
   reprojected position instead of rounding it while interpolating the residual. This targets detail
   dropping in and out around moving character silhouettes and building edges, independently of the sky option.

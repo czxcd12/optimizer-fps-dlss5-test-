@@ -207,3 +207,33 @@ float3 PwTReprojectColour(float2 q)
     return PwTEncodeFrame(PwTColorF.SampleLevel(PwTLinearClamp,
         PwTRectUv(q, PwTColorRect, float2(width, height)), 0.0).rgb);
 }
+
+// A silhouette's anti-aliased colour can change while the underlying surface does
+// not. Test history against local variation on THIS surface, never against a box
+// widened by the other side of the depth edge. Uniform regions retain the strict
+// single-pixel test; the caller keeps that test as the fallback.
+float PwTSilhouetteColourGate(float2 p, float dc, float3 history)
+{
+    float3 sum = 0.0, squares = 0.0;
+    float count = 0.0;
+    [unroll] for (int y = -1; y <= 1; ++y)
+        [unroll] for (int x = -1; x <= 1; ++x)
+        {
+            float2 at = clamp(p + float2(x, y), 0.5, PwTNative.xy - 0.5);
+            float depth = PwTDepth.Load(int3(PwTRectTexel(at, PwTDepthRect), 0));
+            float3 colour = PwTDecodeFrame(PwTLoadFrame(PwTColor,
+                int3(PwTRectTexel(at, PwTColorRect), 0)).rgb);
+            if (PwTDepthMismatch(dc, depth) <= PwTParams.w && all(isfinite(colour)))
+            {
+                sum += colour; squares += colour * colour; count += 1.0;
+            }
+        }
+    if (count < 3.0 || any(!isfinite(history))) return 0.0;
+    float3 mean = sum / count;
+    float3 sigma = sqrt(max(squares / count - mean * mean, 0.0));
+    float3 previous = PwTDecodeFrame(history);
+    float3 closest = clamp(previous, mean - sigma, mean + sigma);
+    float difference = dot(abs(previous - closest), 1.0) / (dot(previous + closest, 1.0) + 0.02);
+    return (1.0 - smoothstep(0.08, 0.16, difference)) *
+        PwTColourGate(PwTEncodeFrame(closest), history, PwTTune.x);
+}
